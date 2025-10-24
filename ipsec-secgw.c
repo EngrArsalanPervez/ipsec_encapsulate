@@ -1166,7 +1166,7 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts, uint16_t portid) {
 
     struct rte_ipv4_hdr* ip = (struct rte_ipv4_hdr*)(eth + 1);
 
-    ip->next_proto_id == IPPROTO_IP;
+    ip->next_proto_id = IPPROTO_IP;
   }
 }
 
