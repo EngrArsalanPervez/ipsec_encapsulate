@@ -184,7 +184,7 @@ static uint64_t dev_tx_offload = UINT64_MAX;
  * global values that determine multi-seg policy
  */
 static uint32_t frag_tbl_sz;
-static uint32_t frame_buf_size = RTE_MBUF_DEFAULT_BUF_SIZE;
+static uint32_t frame_buf_size = RTE_MBUF_DEFAULT_BUF_SIZE + RTE_PKTMBUF_HEADROOM;
 static uint32_t mtu_size = RTE_ETHER_MTU;
 static uint64_t frag_ttl_ns = MAX_FRAG_TTL_NS;
 static uint32_t stats_interval;
