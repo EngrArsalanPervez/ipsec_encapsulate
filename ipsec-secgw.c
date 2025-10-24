@@ -1189,8 +1189,7 @@ struct rte_mbuf* prepend_eth_ip_and_replace(struct rte_mbuf* m,
 
   // Check enough headroom
   if (rte_pktmbuf_headroom(clone) < hdr_len) {
-    struct rte_mbuf* new_m = rte_pktmbuf_prepend(clone, hdr_len);
-    if (new_m == NULL) {
+    if (rte_pktmbuf_prepend(clone, hdr_len) == NULL) {
       printf("Not enough headroom to prepend headers\n");
       rte_pktmbuf_free(clone);
       return NULL;
