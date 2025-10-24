@@ -49,6 +49,7 @@ process_ipsec_get_pkt_type(struct rte_mbuf *pkt, uint8_t **nlp)
 static inline void
 update_mac_addrs(struct rte_mbuf *pkt, uint16_t portid)
 {
+	return;
 	struct rte_ether_hdr *ethhdr;
 
 	ethhdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
