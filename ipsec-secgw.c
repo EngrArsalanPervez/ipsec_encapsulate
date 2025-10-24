@@ -48,6 +48,8 @@
 #include <rte_random.h>
 #include <rte_security.h>
 #include <rte_telemetry.h>
+#include <rte_hexdump.h>
+
 
 #include "event_helper.h"
 #include "flow.h"
