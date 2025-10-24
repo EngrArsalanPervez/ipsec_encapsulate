@@ -1152,6 +1152,24 @@ static void drain_outbound_crypto_queues(const struct lcore_conf* qconf,
     route6_pkts(qconf->rt6_ctx, trf.ip6.pkts, trf.ip6.num);
 }
 
+void print_mbuf_hex(const char* title, struct rte_mbuf* m) {
+  struct rte_mbuf* seg = m;
+  unsigned seg_idx = 0;
+
+  while (seg != NULL) {
+    printf("=== %s: segment %u ===\n", title ? title : "mbuf", seg_idx);
+    printf("pkt_len=%u, data_len=%u, data_off=%u\n", seg->pkt_len,
+           seg->data_len, seg->data_off);
+
+    // Dump the actual data in this segment
+    rte_hexdump(stdout, "segment data", rte_pktmbuf_mtod(seg, void*),
+                seg->data_len);
+
+    seg = seg->next;
+    seg_idx++;
+  }
+}
+
 /*
  * Safely prepend Ethernet + IPv4 headers to a clone of 'orig'.
  * On success:
@@ -1242,6 +1260,7 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts, uint16_t portid) {
       // Replace original and free it
       rte_pktmbuf_free(m);
       pkts[i] = new_m;
+	  print_mbuf_hex("encapsulated packet", pkts[i]);
     }
   }
 }
