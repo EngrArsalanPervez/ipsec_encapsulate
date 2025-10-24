@@ -551,6 +551,41 @@ static inline void prepare_tx_burst(struct rte_mbuf* pkts[],
     prepare_tx_pkt(pkts[i], port, qconf);
 }
 
+// --- Remove outer Ethernet + IPv4 headers ---
+struct rte_mbuf* remove_eth_ip_headers(struct rte_mbuf* m) {
+  const uint16_t hdr_len =
+      sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr);
+
+  if (rte_pktmbuf_data_len(m) < hdr_len) {
+    RTE_LOG(ERR, USER1, "Packet too short to remove headers\n");
+    return NULL;
+  }
+
+  // Move data pointer forward to skip Ethernet + IP headers
+  if (rte_pktmbuf_adj(m, hdr_len) == NULL) {
+    RTE_LOG(ERR, USER1, "Failed to strip headers\n");
+    return NULL;
+  }
+
+  return m;  // trimmed mbuf
+}
+
+// --- Decapsulation wrapper ---
+void decapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
+  for (uint8_t i = 0; i < nb_pkts; i++) {
+    struct rte_mbuf* m = pkts[i];
+    print_mbuf_hex("Before decapsulation", m);
+
+    struct rte_mbuf* inner = remove_eth_ip_headers(m);
+    if (inner == NULL) {
+      RTE_LOG(WARNING, USER1, "Decapsulation failed for packet %u\n", i);
+      continue;
+    }
+
+    print_mbuf_hex("After decapsulation", inner);
+  }
+}
+
 /* Send burst of packets on an output interface */
 static inline int32_t send_burst(struct lcore_conf* qconf,
                                  uint16_t n,
@@ -563,6 +598,10 @@ static inline int32_t send_burst(struct lcore_conf* qconf,
   m_table = (struct rte_mbuf**)qconf->tx_mbufs[port].m_table;
 
   prepare_tx_burst(m_table, n, port, qconf);
+
+  if (port == 0) {
+    decapsulate_pkt(m_table, n);
+  }
 
   ret = rte_eth_tx_burst(port, queueid, m_table, n);
 
@@ -1230,7 +1269,7 @@ struct rte_mbuf* prepend_eth_ip_and_replace(
 }
 
 // Main encapsulation loop
-void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts, uint16_t portid) {
+void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
   struct rte_ether_addr src_mac, dst_mac;
   rte_ether_unformat_addr("11:22:33:44:55:66", &src_mac);
   rte_ether_unformat_addr("aa:bb:cc:dd:ee:ff", &dst_mac);
@@ -1337,7 +1376,7 @@ void ipsec_poll_mode_worker(void) {
       nb_rx = rte_eth_rx_burst(portid, queueid, pkts, MAX_PKT_BURST);
 
       if (portid == 0) {
-        encapsulate_pkt(pkts, nb_rx, portid);
+        encapsulate_pkt(pkts, nb_rx);
       }
 
       if (nb_rx > 0) {
