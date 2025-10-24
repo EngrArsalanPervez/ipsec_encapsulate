@@ -1167,6 +1167,7 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts, uint16_t portid) {
     struct rte_ipv4_hdr* ip = (struct rte_ipv4_hdr*)(eth + 1);
 
     ip->next_proto_id = IPPROTO_IP;
+	printf("UPDATED: next_proto_id\n");
   }
 }
 
@@ -1246,7 +1247,9 @@ void ipsec_poll_mode_worker(void) {
       queueid = rxql[i].queue_id;
       nb_rx = rte_eth_rx_burst(portid, queueid, pkts, MAX_PKT_BURST);
 
-      encapsulate_pkt(pkts, nb_rx, portid);
+      if (portid == 0) {
+        encapsulate_pkt(pkts, nb_rx, portid);
+      }
 
       if (nb_rx > 0) {
         core_stats_update_rx(nb_rx);
