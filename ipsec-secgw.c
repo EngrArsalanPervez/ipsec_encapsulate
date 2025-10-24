@@ -32,6 +32,7 @@
 #include <rte_ether.h>
 #include <rte_eventdev.h>
 #include <rte_hash.h>
+#include <rte_hexdump.h>
 #include <rte_interrupts.h>
 #include <rte_ip.h>
 #include <rte_ip_frag.h>
@@ -48,8 +49,6 @@
 #include <rte_random.h>
 #include <rte_security.h>
 #include <rte_telemetry.h>
-#include <rte_hexdump.h>
-
 
 #include "event_helper.h"
 #include "flow.h"
@@ -1172,73 +1171,62 @@ void print_mbuf_hex(const char* title, struct rte_mbuf* m) {
   }
 }
 
-/*
- * Safely prepend Ethernet + IPv4 headers to a clone of 'orig'.
- * On success:
- *   - Returns encapsulated packet (new mbuf)
- *   - Frees 'orig'
- * On failure:
- *   - Returns 'orig' unchanged (still owned by caller)
- */
-struct rte_mbuf* prepend_eth_ip_and_replace(
-    struct rte_mbuf* orig,
-    struct rte_mempool* mp,
-    const struct rte_ether_addr* new_src_mac,
-    const struct rte_ether_addr* new_dst_mac,
-    uint32_t new_src_ip,
-    uint32_t new_dst_ip) {
-  if (!orig || !mp || !new_src_mac || !new_dst_mac)
-    return orig; /* invalid input → return original unchanged */
-
-  const uint16_t hdr_len =
-      sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr);
-
-  /* Allocate header mbuf */
-  struct rte_mbuf* hdr = rte_pktmbuf_alloc(mp);
-  if (!hdr)
-    return orig;
-
-  void* hdr_data = rte_pktmbuf_append(hdr, hdr_len);
-  if (!hdr_data) {
-    rte_pktmbuf_free(hdr);
-    return orig;
+struct rte_mbuf* prepend_eth_ip_and_replace(struct rte_mbuf* m,
+                                            struct rte_mempool* pool,
+                                            struct rte_ether_addr* src_mac,
+                                            struct rte_ether_addr* dst_mac,
+                                            uint32_t src_ip,
+                                            uint32_t dst_ip) {
+  // Clone the original packet
+  struct rte_mbuf* clone = rte_pktmbuf_clone(m, pool);
+  if (clone == NULL) {
+    printf("Failed to clone packet\n");
+    return NULL;
   }
 
-  /* Fill Ethernet header */
-  struct rte_ether_hdr* eth = (struct rte_ether_hdr*)hdr_data;
-  rte_ether_addr_copy(new_dst_mac, &eth->dst_addr);
-  rte_ether_addr_copy(new_src_mac, &eth->src_addr);
-  eth->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+  // Amount of header space to prepend
+  uint16_t hdr_len = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr);
 
-  /* Fill IPv4 header */
-  struct rte_ipv4_hdr* ip =
-      (struct rte_ipv4_hdr*)((uint8_t*)hdr_data + sizeof(*eth));
-  memset(ip, 0, sizeof(*ip));
-  ip->version_ihl = RTE_IPV4_VHL_DEF;
-  ip->time_to_live = 64;
-  ip->next_proto_id = IPPROTO_IPIP;
-  ip->src_addr = rte_cpu_to_be_32(new_src_ip);
-  ip->dst_addr = rte_cpu_to_be_32(new_dst_ip);
-  ip->total_length = rte_cpu_to_be_16(sizeof(*ip) + orig->pkt_len);
-  ip->hdr_checksum = rte_ipv4_cksum(ip);
-
-  /* Clone original */
-  struct rte_mbuf* cl = rte_pktmbuf_clone(orig, mp);
-  if (!cl) {
-    rte_pktmbuf_free(hdr);
-    return orig;
+  // Check enough headroom
+  if (rte_pktmbuf_headroom(clone) < hdr_len) {
+    struct rte_mbuf* new_m = rte_pktmbuf_prepend(clone, hdr_len);
+    if (new_m == NULL) {
+      printf("Not enough headroom to prepend headers\n");
+      rte_pktmbuf_free(clone);
+      return NULL;
+    }
+  } else {
+    if (rte_pktmbuf_prepend(clone, hdr_len) == NULL) {
+      printf("Failed to prepend space\n");
+      rte_pktmbuf_free(clone);
+      return NULL;
+    }
   }
 
-  /* Chain header + clone */
-  if (rte_pktmbuf_chain(hdr, cl) < 0) {
-    rte_pktmbuf_free(cl);
-    rte_pktmbuf_free(hdr);
-    return orig;
-  }
+  // Now add Ethernet + IPv4 headers
+  struct rte_ether_hdr* eth_hdr =
+      rte_pktmbuf_mtod(clone, struct rte_ether_hdr*);
+  struct rte_ipv4_hdr* ip_hdr = (struct rte_ipv4_hdr*)(eth_hdr + 1);
 
-  /* ✅ Success: free original and return encapsulated */
-  rte_pktmbuf_free(orig);
-  return hdr;
+  // Fill Ethernet header
+  rte_ether_addr_copy(dst_mac, &eth_hdr->dst_addr);
+  rte_ether_addr_copy(src_mac, &eth_hdr->src_addr);
+  eth_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+
+  // Fill IPv4 header
+  ip_hdr->version_ihl = RTE_IPV4_VHL_DEF;
+  ip_hdr->type_of_service = 0;
+  ip_hdr->total_length = rte_cpu_to_be_16(rte_pktmbuf_pkt_len(clone) -
+                                          sizeof(struct rte_ether_hdr));
+  ip_hdr->packet_id = 0;
+  ip_hdr->fragment_offset = 0;
+  ip_hdr->time_to_live = 64;
+  ip_hdr->next_proto_id = IPPROTO_IPIP;  // example: IP-in-IP
+  ip_hdr->src_addr = src_ip;
+  ip_hdr->dst_addr = dst_ip;
+  ip_hdr->hdr_checksum = rte_ipv4_cksum(ip_hdr);
+
+  return clone;
 }
 
 void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts, uint16_t portid) {
@@ -1250,21 +1238,27 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts, uint16_t portid) {
     rte_ether_unformat_addr("11:22:33:44:55:66", &src_mac);
     rte_ether_unformat_addr("aa:bb:cc:dd:ee:ff", &dst_mac);
 
-	print_mbuf_hex("original packet", m);
+    printf("\n--- Packet %u Before Encapsulation ---\n", i);
+    print_mbuf_hex("original packet", m);
 
-    // Try to encapsulate
-    struct rte_mbuf* new_m = prepend_eth_ip_and_replace(
-        m, socket_ctx[0].session_pool, &src_mac, &dst_mac, RTE_IPV4(1, 1, 1, 2),
-        RTE_IPV4(2, 2, 2, 2));
+    // Perform encapsulation (prepend new Ethernet + IPv4 headers)
+    struct rte_mbuf* new_m =
+        prepend_eth_ip_and_replace(m, socket_ctx[0].session_pool, &src_mac,
+                                   &dst_mac, RTE_IPV4(1, 1, 1, 2),  // src_ip
+                                   RTE_IPV4(2, 2, 2, 2)             // dst_ip
+        );
 
-    // If encapsulation failed, keep original
     if (new_m == NULL) {
+      // Failed — keep original untouched
+      printf("Encapsulation failed for packet %u — keeping original\n", i);
       pkts[i] = m;
     } else {
-      // Replace original and free it
+      // Success — free original and replace
       rte_pktmbuf_free(m);
       pkts[i] = new_m;
-	  print_mbuf_hex("encapsulated packet", pkts[i]);
+
+      printf("--- Packet %u After Encapsulation ---\n", i);
+      print_mbuf_hex("encapsulated packet", pkts[i]);
     }
   }
 }
