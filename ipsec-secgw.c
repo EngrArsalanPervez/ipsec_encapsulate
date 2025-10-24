@@ -531,10 +531,10 @@ static inline void prepare_tx_pkt(struct rte_mbuf* pkt,
     ethhdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV6);
   }
 
-//   memcpy(&ethhdr->src_addr, &ethaddr_tbl[port].src,
-//          sizeof(struct rte_ether_addr));
-//   memcpy(&ethhdr->dst_addr, &ethaddr_tbl[port].dst,
-//          sizeof(struct rte_ether_addr));
+  memcpy(&ethhdr->src_addr, &ethaddr_tbl[port].src,
+         sizeof(struct rte_ether_addr));
+  memcpy(&ethhdr->dst_addr, &ethaddr_tbl[port].dst,
+         sizeof(struct rte_ether_addr));
 }
 
 static inline void prepare_tx_burst(struct rte_mbuf* pkts[],
