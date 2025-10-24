@@ -1250,6 +1250,8 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts, uint16_t portid) {
     rte_ether_unformat_addr("11:22:33:44:55:66", &src_mac);
     rte_ether_unformat_addr("aa:bb:cc:dd:ee:ff", &dst_mac);
 
+	print_mbuf_hex("original packet", m);
+
     // Try to encapsulate
     struct rte_mbuf* new_m = prepend_eth_ip_and_replace(
         m, socket_ctx[0].session_pool, &src_mac, &dst_mac, RTE_IPV4(1, 1, 1, 2),
