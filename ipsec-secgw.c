@@ -1171,89 +1171,113 @@ void print_mbuf_hex(const char* title, struct rte_mbuf* m) {
   }
 }
 
+/* Create a fresh mbuf containing: [ETH][IP][original-packet-bytes] */
 struct rte_mbuf* prepend_eth_ip_and_replace(struct rte_mbuf* m,
                                             struct rte_mempool* pool,
                                             struct rte_ether_addr* src_mac,
                                             struct rte_ether_addr* dst_mac,
-                                            uint32_t src_ip,
-                                            uint32_t dst_ip) {
-  uint16_t hdr_len = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr);
+                                            uint32_t src_ip, /* CPU order */
+                                            uint32_t dst_ip) /* CPU order */
+{
+  if (!m || !pool || !src_mac || !dst_mac)
+    return NULL;
 
-  // Allocate a new mbuf with enough space
+  const uint16_t hdr_len =
+      sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr);
+  const uint32_t payload_len = rte_pktmbuf_pkt_len(m);
+
+  /* allocate new mbuf */
   struct rte_mbuf* new_m = rte_pktmbuf_alloc(pool);
   if (new_m == NULL) {
     printf("Failed to allocate new mbuf\n");
     return NULL;
   }
 
-  // Reserve header space
-  if (rte_pktmbuf_append(new_m, hdr_len) == NULL) {
+  /* Reserve header area first */
+  void* hdr_ptr = rte_pktmbuf_append(new_m, hdr_len);
+  if (hdr_ptr == NULL) {
     printf("Failed to append header space\n");
     rte_pktmbuf_free(new_m);
     return NULL;
   }
 
-  // Copy payload from original packet
-  if (rte_pktmbuf_append(new_m, rte_pktmbuf_pkt_len(m)) == NULL) {
+  /* Reserve payload area after header */
+  void* payload_ptr = rte_pktmbuf_append(new_m, payload_len);
+  if (payload_ptr == NULL) {
     printf("Failed to append payload space\n");
     rte_pktmbuf_free(new_m);
     return NULL;
   }
-  rte_memcpy(rte_pktmbuf_mtod_offset(new_m, void*, hdr_len),
-             rte_pktmbuf_mtod(m, void*), rte_pktmbuf_pkt_len(m));
 
-  // Ethernet header
+  /* Copy payload from possibly multi-segment original into new_m's payload */
+  uint32_t copied = 0;
+  struct rte_mbuf* seg = m;
+  uint8_t* dst = (uint8_t*)rte_pktmbuf_mtod_offset(new_m, void*, hdr_len);
+  while (seg && copied < payload_len) {
+    uint32_t seglen = seg->data_len;
+    if (seglen > payload_len - copied)
+      seglen = payload_len - copied;
+    rte_memcpy(dst + copied, rte_pktmbuf_mtod(seg, void*), seglen);
+    copied += seglen;
+    seg = seg->next;
+  }
+  if (copied != payload_len) {
+    /* Should not happen, but be defensive */
+    printf("Warning: copied %u != payload_len %u\n", copied, payload_len);
+    rte_pktmbuf_free(new_m);
+    return NULL;
+  }
+
+  /* Fill Ethernet header at the start of new_m */
   struct rte_ether_hdr* eth_hdr =
       rte_pktmbuf_mtod(new_m, struct rte_ether_hdr*);
-  rte_ether_addr_copy(dst_mac, &eth_hdr->dst_addr);
-  rte_ether_addr_copy(src_mac, &eth_hdr->src_addr);
+  rte_ether_addr_copy(dst_mac, &eth_hdr->d_addr);
+  rte_ether_addr_copy(src_mac, &eth_hdr->s_addr);
   eth_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
-  // IPv4 header
+  /* Fill IPv4 header immediately after Ethernet */
   struct rte_ipv4_hdr* ip_hdr = (struct rte_ipv4_hdr*)(eth_hdr + 1);
+  memset(ip_hdr, 0, sizeof(*ip_hdr));
   ip_hdr->version_ihl = RTE_IPV4_VHL_DEF;
   ip_hdr->type_of_service = 0;
-  ip_hdr->total_length = rte_cpu_to_be_16(
-      hdr_len - sizeof(struct rte_ether_hdr) + rte_pktmbuf_pkt_len(m));
-  ip_hdr->packet_id = 0;
-  ip_hdr->fragment_offset = 0;
+  /* IP total length = IP header + original packet length (we encapsulate entire
+   * original) */
+  uint16_t ip_total = (uint16_t)(sizeof(struct rte_ipv4_hdr) + payload_len);
+  ip_hdr->total_length = rte_cpu_to_be_16(ip_total);
+  ip_hdr->packet_id = rte_cpu_to_be_16(0);
+  ip_hdr->fragment_offset = rte_cpu_to_be_16(0);
   ip_hdr->time_to_live = 64;
-  ip_hdr->next_proto_id = IPPROTO_IPIP;
-  ip_hdr->src_addr = src_ip;
-  ip_hdr->dst_addr = dst_ip;
+  ip_hdr->next_proto_id = IPPROTO_IPIP; /* IP-in-IP; change if needed */
+  ip_hdr->src_addr = rte_cpu_to_be_32(src_ip);
+  ip_hdr->dst_addr = rte_cpu_to_be_32(dst_ip);
   ip_hdr->hdr_checksum = rte_ipv4_cksum(ip_hdr);
 
   return new_m;
 }
 
+/* Your encapsulation loop — unchanged except small style/defensive prints */
 void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts, uint16_t portid) {
   for (uint8_t i = 0; i < nb_pkts; i++) {
     struct rte_mbuf* m = pkts[i];
     struct rte_ether_addr src_mac, dst_mac;
 
-    // Example source/destination MACs
+    /* Example source/destination MACs */
     rte_ether_unformat_addr("11:22:33:44:55:66", &src_mac);
     rte_ether_unformat_addr("aa:bb:cc:dd:ee:ff", &dst_mac);
 
     printf("\n--- Packet %u Before Encapsulation ---\n", i);
     print_mbuf_hex("original packet", m);
 
-    // Perform encapsulation (prepend new Ethernet + IPv4 headers)
-    struct rte_mbuf* new_m =
-        prepend_eth_ip_and_replace(m, socket_ctx[0].session_pool, &src_mac,
-                                   &dst_mac, RTE_IPV4(1, 1, 1, 2),  // src_ip
-                                   RTE_IPV4(2, 2, 2, 2)             // dst_ip
-        );
+    struct rte_mbuf* new_m = prepend_eth_ip_and_replace(
+        m, socket_ctx[0].session_pool, &src_mac, &dst_mac, RTE_IPV4(1, 1, 1, 2),
+        RTE_IPV4(2, 2, 2, 2));
 
     if (new_m == NULL) {
-      // Failed — keep original untouched
       printf("Encapsulation failed for packet %u — keeping original\n", i);
       pkts[i] = m;
     } else {
-      // Success — free original and replace
       rte_pktmbuf_free(m);
       pkts[i] = new_m;
-
       printf("--- Packet %u After Encapsulation ---\n", i);
       print_mbuf_hex("encapsulated packet", pkts[i]);
     }
