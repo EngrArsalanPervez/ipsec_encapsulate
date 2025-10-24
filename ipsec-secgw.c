@@ -1180,8 +1180,8 @@ struct rte_mbuf* prepend_eth_ip_and_replace(
 
   /* Fill Ethernet header */
   struct rte_ether_hdr* eth = (struct rte_ether_hdr*)hdr_data;
-  rte_ether_addr_copy(new_dst_mac, &eth->d_addr);
-  rte_ether_addr_copy(new_src_mac, &eth->s_addr);
+  rte_ether_addr_copy(new_dst_mac, &eth->dst_addr);
+  rte_ether_addr_copy(new_src_mac, &eth->src_addr);
   eth->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
   /* Fill IPv4 header */
