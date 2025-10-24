@@ -1222,19 +1222,27 @@ struct rte_mbuf* prepend_eth_ip_and_replace(
 }
 
 void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts, uint16_t portid) {
-  int32_t i, new_count = 0;
-  struct rte_mbuf* m;
-
-  for (i = 0; i < nb_pkts; i++) {
-    m = pkts[i];
-
+  for (uint8_t i = 0; i < nb_pkts; i++) {
+    struct rte_mbuf* m = pkts[i];
     struct rte_ether_addr src_mac, dst_mac;
-    rte_ether_aton("11:22:33:44:55:66", &src_mac);
-    rte_ether_aton("aa:bb:cc:dd:ee:ff", &dst_mac);
 
-    pkts[i] = prepend_eth_ip_and_replace(
-        pkts[i], socket_ctx[0].session_pool, &src_mac, &dst_mac,
-        RTE_IPV4(1, 1, 1, 2), RTE_IPV4(2, 2, 2, 2));
+    // Example source/destination MACs
+    rte_ether_unformat_addr("11:22:33:44:55:66", &src_mac);
+    rte_ether_unformat_addr("aa:bb:cc:dd:ee:ff", &dst_mac);
+
+    // Try to encapsulate
+    struct rte_mbuf* new_m = prepend_eth_ip_and_replace(
+        m, socket_ctx[0].session_pool, &src_mac, &dst_mac, RTE_IPV4(1, 1, 1, 2),
+        RTE_IPV4(2, 2, 2, 2));
+
+    // If encapsulation failed, keep original
+    if (new_m == NULL) {
+      pkts[i] = m;
+    } else {
+      // Replace original and free it
+      rte_pktmbuf_free(m);
+      pkts[i] = new_m;
+    }
   }
 }
 
