@@ -1153,8 +1153,12 @@ static void drain_outbound_crypto_queues(const struct lcore_conf* qconf,
 }
 
 /*
- * Encapsulate a packet by prepending Ethernet + IPv4 headers.
- * Frees the original mbuf and returns the new encapsulated one.
+ * Safely prepend Ethernet + IPv4 headers to a clone of 'orig'.
+ * On success:
+ *   - Returns encapsulated packet (new mbuf)
+ *   - Frees 'orig'
+ * On failure:
+ *   - Returns 'orig' unchanged (still owned by caller)
  */
 struct rte_mbuf* prepend_eth_ip_and_replace(
     struct rte_mbuf* orig,
@@ -1164,19 +1168,21 @@ struct rte_mbuf* prepend_eth_ip_and_replace(
     uint32_t new_src_ip,
     uint32_t new_dst_ip) {
   if (!orig || !mp || !new_src_mac || !new_dst_mac)
-    return NULL;
+    return orig; /* invalid input → return original unchanged */
 
   const uint16_t hdr_len =
       sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr);
 
-  /* Allocate new mbuf for headers */
+  /* Allocate header mbuf */
   struct rte_mbuf* hdr = rte_pktmbuf_alloc(mp);
   if (!hdr)
-    goto fail;
+    return orig;
 
   void* hdr_data = rte_pktmbuf_append(hdr, hdr_len);
-  if (!hdr_data)
-    goto fail_free_hdr;
+  if (!hdr_data) {
+    rte_pktmbuf_free(hdr);
+    return orig;
+  }
 
   /* Fill Ethernet header */
   struct rte_ether_hdr* eth = (struct rte_ether_hdr*)hdr_data;
@@ -1186,7 +1192,7 @@ struct rte_mbuf* prepend_eth_ip_and_replace(
 
   /* Fill IPv4 header */
   struct rte_ipv4_hdr* ip =
-      (struct rte_ipv4_hdr*)((uint8_t*)eth + sizeof(*eth));
+      (struct rte_ipv4_hdr*)((uint8_t*)hdr_data + sizeof(*eth));
   memset(ip, 0, sizeof(*ip));
   ip->version_ihl = RTE_IPV4_VHL_DEF;
   ip->time_to_live = 64;
@@ -1196,28 +1202,23 @@ struct rte_mbuf* prepend_eth_ip_and_replace(
   ip->total_length = rte_cpu_to_be_16(sizeof(*ip) + orig->pkt_len);
   ip->hdr_checksum = rte_ipv4_cksum(ip);
 
-  /* Clone original packet */
+  /* Clone original */
   struct rte_mbuf* cl = rte_pktmbuf_clone(orig, mp);
-  if (!cl)
-    goto fail_free_hdr;
+  if (!cl) {
+    rte_pktmbuf_free(hdr);
+    return orig;
+  }
 
-  /* Chain new header in front of clone */
-  if (rte_pktmbuf_chain(hdr, cl) < 0)
-    goto fail_free_chain;
+  /* Chain header + clone */
+  if (rte_pktmbuf_chain(hdr, cl) < 0) {
+    rte_pktmbuf_free(cl);
+    rte_pktmbuf_free(hdr);
+    return orig;
+  }
 
-  /* Free original safely (now only clone owns the data) */
+  /* ✅ Success: free original and return encapsulated */
   rte_pktmbuf_free(orig);
-
-  /* Return new encapsulated packet */
   return hdr;
-
-fail_free_chain:
-  rte_pktmbuf_free(cl);
-fail_free_hdr:
-  rte_pktmbuf_free(hdr);
-fail:
-  rte_pktmbuf_free(orig);
-  return NULL;
 }
 
 void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts, uint16_t portid) {
