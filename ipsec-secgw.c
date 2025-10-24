@@ -551,6 +551,24 @@ static inline void prepare_tx_burst(struct rte_mbuf* pkts[],
     prepare_tx_pkt(pkts[i], port, qconf);
 }
 
+void print_mbuf_hex(const char* title, struct rte_mbuf* m) {
+  struct rte_mbuf* seg = m;
+  unsigned seg_idx = 0;
+
+  while (seg != NULL) {
+    printf("=== %s: segment %u ===\n", title ? title : "mbuf", seg_idx);
+    printf("pkt_len=%u, data_len=%u, data_off=%u\n", seg->pkt_len,
+           seg->data_len, seg->data_off);
+
+    // Dump the actual data in this segment
+    rte_hexdump(stdout, "segment data", rte_pktmbuf_mtod(seg, void*),
+                seg->data_len);
+
+    seg = seg->next;
+    seg_idx++;
+  }
+}
+
 // --- Remove outer Ethernet + IPv4 headers ---
 struct rte_mbuf* remove_eth_ip_headers(struct rte_mbuf* m) {
   const uint16_t hdr_len =
@@ -1190,24 +1208,6 @@ static void drain_outbound_crypto_queues(const struct lcore_conf* qconf,
   /* process ipv6 packets */
   if (trf.ip6.num != 0)
     route6_pkts(qconf->rt6_ctx, trf.ip6.pkts, trf.ip6.num);
-}
-
-void print_mbuf_hex(const char* title, struct rte_mbuf* m) {
-  struct rte_mbuf* seg = m;
-  unsigned seg_idx = 0;
-
-  while (seg != NULL) {
-    printf("=== %s: segment %u ===\n", title ? title : "mbuf", seg_idx);
-    printf("pkt_len=%u, data_len=%u, data_off=%u\n", seg->pkt_len,
-           seg->data_len, seg->data_off);
-
-    // Dump the actual data in this segment
-    rte_hexdump(stdout, "segment data", rte_pktmbuf_mtod(seg, void*),
-                seg->data_len);
-
-    seg = seg->next;
-    seg_idx++;
-  }
 }
 
 // Prepend Ethernet + IPv4 header to cloned packet
