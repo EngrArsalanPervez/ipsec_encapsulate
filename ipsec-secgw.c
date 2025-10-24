@@ -1171,70 +1171,70 @@ void print_mbuf_hex(const char* title, struct rte_mbuf* m) {
   }
 }
 
-struct rte_mbuf* prepend_eth_ip_and_replace(struct rte_mbuf* m,
-                                            struct rte_mempool* pool,
-                                            struct rte_ether_addr* src_mac,
-                                            struct rte_ether_addr* dst_mac,
-                                            uint32_t src_ip,
-                                            uint32_t dst_ip) {
-  // Clone the original packet
+// Prepend Ethernet + IPv4 header to cloned packet
+struct rte_mbuf* prepend_eth_ip_and_replace(
+    struct rte_mbuf* m,
+    struct rte_mempool* pool,
+    const struct rte_ether_addr* src_mac,
+    const struct rte_ether_addr* dst_mac,
+    uint32_t src_ip,
+    uint32_t dst_ip) {
+  // Clone the original packet first (safe for prepend)
   struct rte_mbuf* clone = rte_pktmbuf_clone(m, pool);
   if (clone == NULL) {
-    printf("Failed to clone packet\n");
+    RTE_LOG(ERR, USER1, "Failed to clone packet\n");
     return NULL;
   }
 
-  // Amount of header space to prepend
-  uint16_t hdr_len = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr);
+  const uint16_t hdr_len =
+      sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr);
 
-  // Check enough headroom
-  if (rte_pktmbuf_headroom(clone) < hdr_len) {
-    if (rte_pktmbuf_prepend(clone, hdr_len) == NULL) {
-      printf("Not enough headroom to prepend headers\n");
-      rte_pktmbuf_free(clone);
-      return NULL;
-    }
-  } else {
-    if (rte_pktmbuf_prepend(clone, hdr_len) == NULL) {
-      printf("Failed to prepend space\n");
-      rte_pktmbuf_free(clone);
-      return NULL;
-    }
+  // Prepend header space (or fail)
+  if (rte_pktmbuf_prepend(clone, hdr_len) == NULL) {
+    RTE_LOG(ERR, USER1, "Not enough headroom to prepend headers\n");
+    rte_pktmbuf_free(clone);
+    return NULL;
   }
 
-  // Now add Ethernet + IPv4 headers
+  // Get header pointers
   struct rte_ether_hdr* eth_hdr =
       rte_pktmbuf_mtod(clone, struct rte_ether_hdr*);
   struct rte_ipv4_hdr* ip_hdr = (struct rte_ipv4_hdr*)(eth_hdr + 1);
 
-  // Fill Ethernet header
+  // --- Ethernet header ---
   rte_ether_addr_copy(dst_mac, &eth_hdr->dst_addr);
   rte_ether_addr_copy(src_mac, &eth_hdr->src_addr);
   eth_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
-  // Fill IPv4 header
+  // --- IPv4 header ---
+  uint16_t ip_total_len =
+      rte_pktmbuf_pkt_len(clone) - sizeof(struct rte_ether_hdr);
+
   ip_hdr->version_ihl = RTE_IPV4_VHL_DEF;
   ip_hdr->type_of_service = 0;
-  ip_hdr->total_length = rte_cpu_to_be_16(rte_pktmbuf_pkt_len(clone) -
-                                          sizeof(struct rte_ether_hdr));
+  ip_hdr->total_length = rte_cpu_to_be_16(ip_total_len);
   ip_hdr->packet_id = 0;
   ip_hdr->fragment_offset = 0;
   ip_hdr->time_to_live = 64;
-  ip_hdr->next_proto_id = IPPROTO_IPIP;  // example: IP-in-IP
-  ip_hdr->src_addr = src_ip;
-  ip_hdr->dst_addr = dst_ip;
+  ip_hdr->next_proto_id = IPPROTO_IPIP;
+  ip_hdr->hdr_checksum = 0;
+
+  // ✅ Convert IPs to network byte order (big-endian)
+  ip_hdr->src_addr = rte_cpu_to_be_32(src_ip);
+  ip_hdr->dst_addr = rte_cpu_to_be_32(dst_ip);
+
   ip_hdr->hdr_checksum = rte_ipv4_cksum(ip_hdr);
 
   return clone;
 }
 
 void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts, uint16_t portid) {
+  struct rte_ether_addr src_mac, dst_mac;
+  rte_ether_unformat_addr("11:22:33:44:55:66", &src_mac);
+  rte_ether_unformat_addr("aa:bb:cc:dd:ee:ff", &dst_mac);
+
   for (uint8_t i = 0; i < nb_pkts; i++) {
     struct rte_mbuf* m = pkts[i];
-
-    struct rte_ether_addr src_mac, dst_mac;
-    rte_ether_unformat_addr("11:22:33:44:55:66", &src_mac);
-    rte_ether_unformat_addr("aa:bb:cc:dd:ee:ff", &dst_mac);
 
     print_mbuf_hex("original packet", m);
 
@@ -1245,14 +1245,11 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts, uint16_t portid) {
         );
 
     if (new_m == NULL) {
-      // Failed — keep original untouched
-      printf("Encapsulation failed for packet %u — keeping original\n", i);
-      pkts[i] = m;
+      RTE_LOG(WARNING, USER1,
+              "Encapsulation failed for packet %u — keeping original\n", i);
     } else {
-      // Success — free original and replace
       rte_pktmbuf_free(m);
       pkts[i] = new_m;
-
       print_mbuf_hex("encapsulated packet", pkts[i]);
     }
   }
