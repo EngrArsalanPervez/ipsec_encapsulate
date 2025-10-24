@@ -57,6 +57,8 @@
 #include "parser.h"
 #include "sad.h"
 
+#define DIRECTION 0
+
 volatile bool force_quit;
 
 #define MAX_JUMBO_PKT_LEN 9600
@@ -1279,11 +1281,19 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
 
     print_mbuf_hex("original packet", m);
 
+    uint32_t src_ip;
+    uint32_t dst_ip;
+
+    if (DIRECTION == 0) {
+      src_ip = RTE_IPV4(1, 1, 1, 2);
+      dst_ip = RTE_IPV4(2, 2, 2, 2);
+    } else {
+      src_ip = RTE_IPV4(2, 2, 2, 2);
+      dst_ip = RTE_IPV4(1, 1, 1, 2);
+    }
+
     struct rte_mbuf* new_m = prepend_eth_ip_and_replace(
-        m, socket_ctx[0].session_pool, &src_mac, &dst_mac,
-        RTE_IPV4(1, 1, 1, 2),  // src_ip (1.1.1.2)
-        RTE_IPV4(2, 2, 2, 2)   // dst_ip (2.2.2.2)
-    );
+        m, socket_ctx[0].session_pool, &src_mac, &dst_mac, src_ip, dst_ip);
 
     if (new_m == NULL) {
       RTE_LOG(WARNING, USER1,
