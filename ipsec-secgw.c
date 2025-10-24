@@ -1231,8 +1231,8 @@ struct rte_mbuf* prepend_eth_ip_and_replace(struct rte_mbuf* m,
   /* Fill Ethernet header at the start of new_m */
   struct rte_ether_hdr* eth_hdr =
       rte_pktmbuf_mtod(new_m, struct rte_ether_hdr*);
-  rte_ether_addr_copy(dst_mac, &eth_hdr->d_addr);
-  rte_ether_addr_copy(src_mac, &eth_hdr->s_addr);
+  rte_ether_addr_copy(dst_mac, &eth_hdr->dst_addr);
+  rte_ether_addr_copy(src_mac, &eth_hdr->src_addr);
   eth_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
   /* Fill IPv4 header immediately after Ethernet */
