@@ -1218,6 +1218,11 @@ drain_outbound_crypto_queues(const struct lcore_conf *qconf,
 		route6_pkts(qconf->rt6_ctx, trf.ip6.pkts, trf.ip6.num);
 }
 
+void encapsulate_pkt(struct rte_mbuf **pkts,
+		uint8_t nb_pkts, uint16_t portid){
+;
+}
+
 /* main processing loop */
 void
 ipsec_poll_mode_worker(void)
@@ -1302,6 +1307,8 @@ ipsec_poll_mode_worker(void)
 			queueid = rxql[i].queue_id;
 			nb_rx = rte_eth_rx_burst(portid, queueid,
 					pkts, MAX_PKT_BURST);
+
+			encapsulate_pkt(pkts, nb_rx, portid);
 
 			if (nb_rx > 0) {
 				core_stats_update_rx(nb_rx);
