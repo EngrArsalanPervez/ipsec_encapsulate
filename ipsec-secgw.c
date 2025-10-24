@@ -1152,22 +1152,88 @@ static void drain_outbound_crypto_queues(const struct lcore_conf* qconf,
     route6_pkts(qconf->rt6_ctx, trf.ip6.pkts, trf.ip6.num);
 }
 
+/*
+ * Encapsulate a packet by prepending Ethernet + IPv4 headers.
+ * Frees the original mbuf and returns the new encapsulated one.
+ */
+struct rte_mbuf* prepend_eth_ip_and_replace(
+    struct rte_mbuf* orig,
+    struct rte_mempool* mp,
+    const struct rte_ether_addr* new_src_mac,
+    const struct rte_ether_addr* new_dst_mac,
+    uint32_t new_src_ip,
+    uint32_t new_dst_ip) {
+  if (!orig || !mp || !new_src_mac || !new_dst_mac)
+    return NULL;
+
+  const uint16_t hdr_len =
+      sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr);
+
+  /* Allocate new mbuf for headers */
+  struct rte_mbuf* hdr = rte_pktmbuf_alloc(mp);
+  if (!hdr)
+    goto fail;
+
+  void* hdr_data = rte_pktmbuf_append(hdr, hdr_len);
+  if (!hdr_data)
+    goto fail_free_hdr;
+
+  /* Fill Ethernet header */
+  struct rte_ether_hdr* eth = (struct rte_ether_hdr*)hdr_data;
+  rte_ether_addr_copy(new_dst_mac, &eth->d_addr);
+  rte_ether_addr_copy(new_src_mac, &eth->s_addr);
+  eth->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+
+  /* Fill IPv4 header */
+  struct rte_ipv4_hdr* ip =
+      (struct rte_ipv4_hdr*)((uint8_t*)eth + sizeof(*eth));
+  memset(ip, 0, sizeof(*ip));
+  ip->version_ihl = RTE_IPV4_VHL_DEF;
+  ip->time_to_live = 64;
+  ip->next_proto_id = IPPROTO_IPIP;
+  ip->src_addr = rte_cpu_to_be_32(new_src_ip);
+  ip->dst_addr = rte_cpu_to_be_32(new_dst_ip);
+  ip->total_length = rte_cpu_to_be_16(sizeof(*ip) + orig->pkt_len);
+  ip->hdr_checksum = rte_ipv4_cksum(ip);
+
+  /* Clone original packet */
+  struct rte_mbuf* cl = rte_pktmbuf_clone(orig, mp);
+  if (!cl)
+    goto fail_free_hdr;
+
+  /* Chain new header in front of clone */
+  if (rte_pktmbuf_chain(hdr, cl) < 0)
+    goto fail_free_chain;
+
+  /* Free original safely (now only clone owns the data) */
+  rte_pktmbuf_free(orig);
+
+  /* Return new encapsulated packet */
+  return hdr;
+
+fail_free_chain:
+  rte_pktmbuf_free(cl);
+fail_free_hdr:
+  rte_pktmbuf_free(hdr);
+fail:
+  rte_pktmbuf_free(orig);
+  return NULL;
+}
+
 void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts, uint16_t portid) {
   int32_t i, new_count = 0;
   struct rte_mbuf* m;
 
   for (i = 0; i < nb_pkts; i++) {
     m = pkts[i];
-    struct rte_ether_hdr* eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr*);
 
-    if (rte_be_to_cpu_16(eth->ether_type) != RTE_ETHER_TYPE_IPV4) {
-      continue;
-    }
+    struct rte_ether_addr src_mac, dst_mac;
+    rte_ether_aton("11:22:33:44:55:66", &src_mac);
+    rte_ether_aton("aa:bb:cc:dd:ee:ff", &dst_mac);
 
-    struct rte_ipv4_hdr* ip = (struct rte_ipv4_hdr*)(eth + 1);
-
-    ip->next_proto_id = 253;
-	printf("UPDATED: next_proto_id\n");
+    pkts[i] = prepend_eth_ip_and_replace(
+        pkts[i], socket_ctx[0].session_pool, &src_mac, &dst_mac,
+        RTE_IPV4(1, 1, 1, 2), RTE_IPV4(2, 2, 2, 2));
   }
 }
 
