@@ -1273,8 +1273,6 @@ struct rte_mbuf* prepend_eth_ip_and_replace(
 // Main encapsulation loop
 void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
   struct rte_ether_addr src_mac, dst_mac;
-  rte_ether_unformat_addr("11:22:33:44:55:66", &src_mac);
-  rte_ether_unformat_addr("aa:bb:cc:dd:ee:ff", &dst_mac);
 
   for (uint8_t i = 0; i < nb_pkts; i++) {
     struct rte_mbuf* m = pkts[i];
@@ -1285,9 +1283,13 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     uint32_t dst_ip;
 
     if (DIRECTION == 0) {
+      rte_ether_unformat_addr("11:22:33:44:55:66", &src_mac);
+      rte_ether_unformat_addr("aa:bb:cc:dd:ee:ff", &dst_mac);
       src_ip = RTE_IPV4(1, 1, 1, 2);
       dst_ip = RTE_IPV4(2, 2, 2, 2);
     } else {
+      rte_ether_unformat_addr("aa:bb:cc:dd:ee:ff", &src_mac);
+      rte_ether_unformat_addr("11:22:33:44:55:66", &dst_mac);
       src_ip = RTE_IPV4(2, 2, 2, 2);
       dst_ip = RTE_IPV4(1, 1, 1, 2);
     }
