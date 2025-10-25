@@ -594,7 +594,7 @@ struct rte_mbuf* remove_eth_ip_headers(struct rte_mbuf* m) {
 void decapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
   for (uint8_t i = 0; i < nb_pkts; i++) {
     struct rte_mbuf* m = pkts[i];
-    print_mbuf_hex("Before decapsulation", m);
+    // print_mbuf_hex("Before decapsulation", m);
 
     struct rte_mbuf* inner = remove_eth_ip_headers(m);
     if (inner == NULL) {
@@ -602,7 +602,7 @@ void decapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
       continue;
     }
 
-    print_mbuf_hex("After decapsulation", inner);
+    // print_mbuf_hex("After decapsulation", inner);
 
     // Disable checksum offloads for this mbuf
     inner->ol_flags &= ~(RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM |
@@ -1275,7 +1275,7 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
 
   for (uint8_t i = 0; i < nb_pkts; i++) {
     struct rte_mbuf* m = pkts[i];
-    print_mbuf_hex("original packet", m);
+    // print_mbuf_hex("original packet", m);
 
     uint32_t src_ip;
     uint32_t dst_ip;
@@ -1305,7 +1305,7 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     rte_pktmbuf_free(m);
     pkts[i] = new_m;
 
-    print_mbuf_hex("encapsulated packet", pkts[i]);
+    // print_mbuf_hex("encapsulated packet", pkts[i]);
   }
 }
 
