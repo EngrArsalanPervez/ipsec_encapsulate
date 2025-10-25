@@ -1258,14 +1258,14 @@ struct rte_mbuf* prepend_eth_ip_and_replace(
   ip_hdr->fragment_offset = 0;
   ip_hdr->time_to_live = 64;
   ip_hdr->next_proto_id = IPPROTO_IPIP;  // inner IP encapsulation
-  ip_hdr->hdr_checksum = 0;
+  // ip_hdr->hdr_checksum = 0;
 
   // ✅ Convert IPs to big-endian (network byte order)
   ip_hdr->src_addr = rte_cpu_to_be_32(src_ip);
   ip_hdr->dst_addr = rte_cpu_to_be_32(dst_ip);
 
   // Calculate checksum after header is fully set
-  ip_hdr->hdr_checksum = rte_ipv4_cksum(ip_hdr);
+  // ip_hdr->hdr_checksum = rte_ipv4_cksum(ip_hdr);
 
   return clone;
 }
