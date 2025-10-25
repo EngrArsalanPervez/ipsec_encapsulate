@@ -1212,63 +1212,59 @@ static void drain_outbound_crypto_queues(const struct lcore_conf* qconf,
     route6_pkts(qconf->rt6_ctx, trf.ip6.pkts, trf.ip6.num);
 }
 
-// Prepend Ethernet + IPv4 header to cloned packet
-struct rte_mbuf* prepend_eth_ip_and_replace(
-    struct rte_mbuf* m,
+// Prepend Ethernet + IPv4 header and copy original payload
+struct rte_mbuf* prepend_eth_ip_manual(
+    struct rte_mbuf* orig,
     struct rte_mempool* pool,
     const struct rte_ether_addr* src_mac,
     const struct rte_ether_addr* dst_mac,
     uint32_t src_ip,
-    uint32_t dst_ip) {
-  // Clone the original packet (so we don’t modify the original buffer)
-  struct rte_mbuf* clone = rte_pktmbuf_clone(m, pool);
-  if (clone == NULL) {
-    RTE_LOG(ERR, USER1, "Failed to clone packet\n");
-    return NULL;
-  }
+    uint32_t dst_ip)
+{
+    const uint16_t hdr_len = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr);
+    const uint16_t orig_len = rte_pktmbuf_pkt_len(orig);
+    const uint16_t total_len = hdr_len + orig_len;
 
-  const uint16_t hdr_len =
-      sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr);
+    // Allocate a new mbuf
+    struct rte_mbuf* new_m = rte_pktmbuf_alloc(pool);
+    if (!new_m) {
+        printf("[ERR] Failed to allocate new mbuf\n");
+        return NULL;
+    }
 
-  // Try to prepend header space
-  if (rte_pktmbuf_prepend(clone, hdr_len) == NULL) {
-    RTE_LOG(ERR, USER1, "Not enough headroom to prepend headers\n");
-    rte_pktmbuf_free(clone);
-    return NULL;
-  }
+    // Append enough space for headers + payload
+    uint8_t* data = rte_pktmbuf_append(new_m, total_len);
+    if (!data) {
+        printf("[ERR] Not enough tailroom in new mbuf\n");
+        rte_pktmbuf_free(new_m);
+        return NULL;
+    }
 
-  // Map headers to mbuf data
-  struct rte_ether_hdr* eth_hdr =
-      rte_pktmbuf_mtod(clone, struct rte_ether_hdr*);
-  struct rte_ipv4_hdr* ip_hdr = (struct rte_ipv4_hdr*)(eth_hdr + 1);
+    // Copy original payload after the header space
+    rte_memcpy(data + hdr_len, rte_pktmbuf_mtod(orig, void*), orig_len);
 
-  // --- Ethernet header ---
-  rte_ether_addr_copy(dst_mac, &eth_hdr->dst_addr);
-  rte_ether_addr_copy(src_mac, &eth_hdr->src_addr);
-  eth_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+    // Build Ethernet header
+    struct rte_ether_hdr* eth_hdr = (struct rte_ether_hdr*)data;
+    rte_ether_addr_copy(dst_mac, &eth_hdr->dst_addr);
+    rte_ether_addr_copy(src_mac, &eth_hdr->src_addr);
+    eth_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
-  // --- IPv4 header ---
-  const uint16_t ip_total_len =
-      rte_pktmbuf_pkt_len(clone) - sizeof(struct rte_ether_hdr);
+    // Build IPv4 header
+    struct rte_ipv4_hdr* ip_hdr = (struct rte_ipv4_hdr*)(eth_hdr + 1);
+    ip_hdr->version_ihl = RTE_IPV4_VHL_DEF;
+    ip_hdr->type_of_service = 0;
+    ip_hdr->total_length = rte_cpu_to_be_16(total_len - sizeof(struct rte_ether_hdr));
+    ip_hdr->packet_id = 0;
+    ip_hdr->fragment_offset = 0;
+    ip_hdr->time_to_live = 64;
+    ip_hdr->next_proto_id = IPPROTO_IPIP;  // inner IP encapsulation
+    ip_hdr->src_addr = rte_cpu_to_be_32(src_ip);
+    ip_hdr->dst_addr = rte_cpu_to_be_32(dst_ip);
+    ip_hdr->hdr_checksum = rte_ipv4_cksum(ip_hdr);
 
-  ip_hdr->version_ihl = RTE_IPV4_VHL_DEF;
-  ip_hdr->type_of_service = 0;
-  ip_hdr->total_length = rte_cpu_to_be_16(ip_total_len);
-  ip_hdr->packet_id = 0;
-  ip_hdr->fragment_offset = 0;
-  ip_hdr->time_to_live = 64;
-  ip_hdr->next_proto_id = IPPROTO_IPIP;  // inner IP encapsulation
-  // ip_hdr->hdr_checksum = 0;
-
-  // ✅ Convert IPs to big-endian (network byte order)
-  ip_hdr->src_addr = rte_cpu_to_be_32(src_ip);
-  ip_hdr->dst_addr = rte_cpu_to_be_32(dst_ip);
-
-  // Calculate checksum after header is fully set
-  // ip_hdr->hdr_checksum = rte_ipv4_cksum(ip_hdr);
-
-  return clone;
+    return new_m;
 }
+
 
 // Main encapsulation loop
 void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
@@ -1288,14 +1284,14 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
       src_ip = RTE_IPV4(1, 1, 1, 2);
       dst_ip = RTE_IPV4(2, 2, 2, 2);
     } else {
-      rte_ether_unformat_addr("aa:bb:cc:dd:ee:ff", &src_mac);
-      rte_ether_unformat_addr("11:22:33:44:55:66", &dst_mac);
+      rte_ether_unformat_addr("66:55:44:33:22:11", &src_mac);
+      rte_ether_unformat_addr("ff:ee:dd:cc:bb:aa", &dst_mac);
       src_ip = RTE_IPV4(2, 2, 2, 2);
       dst_ip = RTE_IPV4(1, 1, 1, 2);
     }
 
-    struct rte_mbuf* new_m = prepend_eth_ip_and_replace(
-        m, socket_ctx[0].session_pool, &src_mac, &dst_mac, src_ip, dst_ip);
+    struct rte_mbuf* new_m = prepend_eth_ip_manual(
+        m, socket_ctx[0].mbuf_pool, &src_mac, &dst_mac, src_ip, dst_ip);
 
     if (new_m == NULL) {
       RTE_LOG(WARNING, USER1,
