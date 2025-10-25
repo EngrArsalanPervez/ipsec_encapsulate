@@ -57,7 +57,10 @@
 #include "parser.h"
 #include "sad.h"
 
-#define DIRECTION 0
+struct ipEncryptorTypeStruct {
+  uint8_t direction;
+};
+struct ipEncryptorTypeStruct ipEncryptorType = {0};
 
 volatile bool force_quit;
 
@@ -1280,7 +1283,7 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     uint32_t src_ip;
     uint32_t dst_ip;
 
-    if (DIRECTION == 0) {
+    if (ipEncryptorType.direction == 0) {
       rte_ether_unformat_addr("11:22:33:44:55:66", &src_mac);
       rte_ether_unformat_addr("aa:bb:cc:dd:ee:ff", &dst_mac);
       src_ip = RTE_IPV4(1, 1, 1, 2);
@@ -1728,18 +1731,31 @@ static int parse_schedule_type(struct eh_conf* conf, const char* optarg) {
   return 0;
 }
 
+int config_hclos_lclos() {
+  if (strcmp(optarg, "HCLOS") == 0) {
+    uint8_t mac[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+    ipEncryptorType.direction = 0;
+    return 0;
+  } else if (strcmp(optarg, "LCLOS") == 0) {
+    ipEncryptorType.direction = 1;
+    return 0;
+  } else
+    return -1;
+}
+
 static int32_t parse_args(int32_t argc, char** argv, struct eh_conf* eh_conf) {
   int opt;
   int64_t ret;
   char** argvopt;
   int32_t option_index;
   char* prgname = argv[0];
+  int32_t d_present = 0;
   int32_t f_present = 0;
   struct eventmode_conf* em_conf = NULL;
 
   argvopt = argv;
 
-  while ((opt = getopt_long(argc, argvopt, "aelp:Pu:f:j:w:c:t:s:", lgopts,
+  while ((opt = getopt_long(argc, argvopt, "aelp:Pu:d:f:j:w:c:t:s:", lgopts,
                             &option_index)) != EOF) {
     switch (opt) {
       case 'p':
@@ -1761,6 +1777,24 @@ static int32_t parse_args(int32_t argc, char** argv, struct eh_conf* eh_conf) {
           print_usage(prgname);
           return -1;
         }
+        break;
+      case 'd':
+        if (d_present == 1) {
+          printf(
+              "\"-d\" option present more than "
+              "once!\n");
+          return -1;
+        }
+        ret = config_hclos_lclos(optarg);
+        if (ret < 0) {
+          printf(
+              "Invalid -d option: "
+              "%s\n",
+              optarg);
+          printf("Allowed Options: HCLOS or LCLOS\n");
+          return -1;
+        }
+        d_present = 1;
         break;
       case 'f':
         if (f_present == 1) {
