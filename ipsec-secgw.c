@@ -1286,13 +1286,13 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     if (ipEncryptorType.direction == 0) {
       rte_ether_unformat_addr("11:22:33:44:55:66", &src_mac);
       rte_ether_unformat_addr("aa:bb:cc:dd:ee:ff", &dst_mac);
-      src_ip = RTE_IPV4(1, 1, 1, 2);
-      dst_ip = RTE_IPV4(2, 2, 2, 2);
+      src_ip = RTE_IPV4(10, 10, 10, 1);
+      dst_ip = RTE_IPV4(10, 10, 10, 2);
     } else {
-      rte_ether_unformat_addr("66:55:44:33:22:11", &src_mac);
-      rte_ether_unformat_addr("ff:ee:dd:cc:bb:aa", &dst_mac);
-      src_ip = RTE_IPV4(2, 2, 2, 2);
-      dst_ip = RTE_IPV4(1, 1, 1, 2);
+      rte_ether_unformat_addr("aa:bb:cc:dd:ee:ff", &src_mac);
+      rte_ether_unformat_addr("11:22:33:44:55:66", &dst_mac);
+      src_ip = RTE_IPV4(10, 10, 10, 2);
+      dst_ip = RTE_IPV4(10, 10, 10, 1);
     }
 
     struct rte_mbuf* new_m = prepend_eth_ip_manual(
