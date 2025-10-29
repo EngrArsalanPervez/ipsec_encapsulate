@@ -8,6 +8,7 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
+#include <pcap.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -17,7 +18,6 @@
 #include <string.h>
 #include <sys/queue.h>
 #include <sys/types.h>
-#include <pcap.h>
 
 #include <rte_acl.h>
 #include <rte_alarm.h>
@@ -1329,6 +1329,10 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     struct rte_mbuf* m = pkts[i];
     // print_mbuf_hex("original packet", m);
 
+#ifdef DUMP_PCAP
+    dump_packet(m);
+#endif
+
     uint32_t src_ip;
     uint32_t dst_ip;
 
@@ -1460,10 +1464,6 @@ void ipsec_poll_mode_worker(void) {
       portid = rxql[i].port_id;
       queueid = rxql[i].queue_id;
       nb_rx = rte_eth_rx_burst(portid, queueid, pkts, MAX_PKT_BURST);
-
-#ifdef DUMP_PCAP
-      dump_packet(buf);
-#endif
 
       if (portid == 0) {
         encapsulate_pkt(pkts, nb_rx);
