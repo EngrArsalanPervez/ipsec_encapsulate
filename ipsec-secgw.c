@@ -1325,6 +1325,17 @@ struct rte_mbuf* prepend_eth_ip_manual(struct rte_mbuf* orig,
   return new_m;
 }
 
+uint32_t ip_to_uint32(const char* ip_str) {
+  struct in_addr ip_addr;
+
+  if (inet_pton(AF_INET, ip_str, &ip_addr) != 1) {
+    fprintf(stderr, "Invalid IP address: %s\n", ip_str);
+    return 0;
+  }
+
+  return ip_addr.s_addr;  // already in network byte order
+}
+
 // Main encapsulation loop
 void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
   struct rte_ether_addr src_mac, dst_mac;
@@ -1333,23 +1344,31 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     struct rte_mbuf* m = pkts[i];
     // print_mbuf_hex("original packet", m);
 
+    unsigned char* pkt = rte_pktmbuf_mtod(buf, unsigned char*);
+    struct rte_ether_hdr* ethHdr = (struct rte_ether_hdr*)pkt;
+    uint16_t ethType = rte_cpu_to_be_16(ethHdr->ether_type);
+
+    if (ethType != RTE_ETHER_TYPE_IPV4)
+      continue;
+
+    struct rte_ipv4_hdr* ip4Hdr;
+    ip4Hdr = (struct rte_ipv4_hdr*)&pkt[14];
+
     uint32_t src_ip;
     uint32_t dst_ip;
-
-    uint8_t route = 1;
 
     if (ipEncryptorType.device == 0) {
       rte_ether_unformat_addr(ipEncryptorType.mac_hclos, &src_mac);
 
-      if (route == 1) {
+      if (ip4Hdr.dst_addr == ip_to_uint32("192.168.90.30")) {
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos10, &dst_mac);
         src_ip = RTE_IPV4(10, 10, 10, 1);
         dst_ip = RTE_IPV4(10, 10, 10, 2);
-      } else if (route == 2) {
+      } else if (ip4Hdr.dst_addr == ip_to_uint32("192.168.90.40")) {
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos20, &dst_mac);
         src_ip = RTE_IPV4(20, 20, 20, 1);
         dst_ip = RTE_IPV4(20, 20, 20, 2);
-      } else if (route == 3) {
+      } else if (ip4Hdr.dst_addr == ip_to_uint32("192.168.90.50")) {
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos30, &dst_mac);
         src_ip = RTE_IPV4(30, 30, 30, 1);
         dst_ip = RTE_IPV4(30, 30, 30, 2);
@@ -1357,15 +1376,15 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     } else {
       rte_ether_unformat_addr(ipEncryptorType.mac_hclos, &dst_mac);
 
-      if (route == 1) {
+      if (ip4Hdr.src_addr == ip_to_uint32("192.168.90.30")) {
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos10, &src_mac);
         src_ip = RTE_IPV4(10, 10, 10, 2);
         dst_ip = RTE_IPV4(10, 10, 10, 1);
-      } else if (route == 2) {
+      } else if (ip4Hdr.src_addr == ip_to_uint32("192.168.90.40")) {
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos20, &src_mac);
         src_ip = RTE_IPV4(20, 20, 20, 2);
         dst_ip = RTE_IPV4(20, 20, 20, 1);
-      } else if (route == 3) {
+      } else if (ip4Hdr.src_addr == ip_to_uint32("192.168.90.50")) {
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos30, &src_mac);
         src_ip = RTE_IPV4(30, 30, 30, 2);
         dst_ip = RTE_IPV4(30, 30, 30, 1);
