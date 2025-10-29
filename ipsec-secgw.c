@@ -66,7 +66,7 @@ struct ipEncryptorTypeStruct {
   uint8_t device;
 };
 struct ipEncryptorTypeStruct ipEncryptorType = {0};
-#define DUMP_PCAP
+// #define DUMP_PCAP
 
 volatile bool force_quit;
 
@@ -1336,7 +1336,7 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     uint32_t src_ip;
     uint32_t dst_ip;
 
-    uint8_t route = 3;
+    uint8_t route = 1;
 
     if (ipEncryptorType.device == 0) {
       rte_ether_unformat_addr(ipEncryptorType.mac_hclos, &src_mac);
