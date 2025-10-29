@@ -1344,7 +1344,7 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     struct rte_mbuf* m = pkts[i];
     // print_mbuf_hex("original packet", m);
 
-    unsigned char* pkt = rte_pktmbuf_mtod(buf, unsigned char*);
+    unsigned char* pkt = rte_pktmbuf_mtod(m, unsigned char*);
     struct rte_ether_hdr* ethHdr = (struct rte_ether_hdr*)pkt;
     uint16_t ethType = rte_cpu_to_be_16(ethHdr->ether_type);
 
