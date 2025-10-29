@@ -17,6 +17,7 @@
 #include <string.h>
 #include <sys/queue.h>
 #include <sys/types.h>
+#include <pcap.h>
 
 #include <rte_acl.h>
 #include <rte_alarm.h>
