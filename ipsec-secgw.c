@@ -1361,22 +1361,17 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
       rte_ether_unformat_addr(ipEncryptorType.mac_hclos, &src_mac);
 
       if (ip4Hdr->dst_addr == ip_to_uint32("192.168.99.30")) {
-        printf("MATCHED:192.168.99.30\n");
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos10, &dst_mac);
         src_ip = RTE_IPV4(10, 10, 10, 1);
         dst_ip = RTE_IPV4(10, 10, 10, 2);
       } else if (ip4Hdr->dst_addr == ip_to_uint32("192.168.99.40")) {
-        printf("MATCHED:192.168.99.40\n");
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos20, &dst_mac);
         src_ip = RTE_IPV4(20, 20, 20, 1);
         dst_ip = RTE_IPV4(20, 20, 20, 2);
       } else if (ip4Hdr->dst_addr == ip_to_uint32("192.168.99.50")) {
-        printf("MATCHED:192.168.99.50\n");
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos30, &dst_mac);
         src_ip = RTE_IPV4(30, 30, 30, 1);
         dst_ip = RTE_IPV4(30, 30, 30, 2);
-      } else {
-        printf("UNMATCHED: %u:%u\n", ip4Hdr->dst_addr, ip_to_uint32("192.168.99.30"));
       }
     } else {
       rte_ether_unformat_addr(ipEncryptorType.mac_hclos, &dst_mac);
