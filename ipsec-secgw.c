@@ -648,6 +648,10 @@ void decapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     struct rte_mbuf* m = pkts[i];
     // print_mbuf_hex("Before decapsulation", m);
 
+#ifdef DUMP_PCAP
+    dump_packet(m);
+#endif
+
     struct rte_mbuf* inner = remove_eth_ip_headers(m);
     if (inner == NULL) {
       RTE_LOG(WARNING, USER1, "Decapsulation failed for packet %u\n", i);
@@ -1332,7 +1336,7 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     uint32_t src_ip;
     uint32_t dst_ip;
 
-    uint8_t route = 2;
+    uint8_t route = 3;
 
     if (ipEncryptorType.device == 0) {
       rte_ether_unformat_addr(ipEncryptorType.mac_hclos, &src_mac);
