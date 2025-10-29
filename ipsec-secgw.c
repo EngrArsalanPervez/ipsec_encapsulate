@@ -1287,10 +1287,11 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     uint32_t src_ip;
     uint32_t dst_ip;
 
+    uint8_t route = 1;
+
     if (ipEncryptorType.device == 0) {
       rte_ether_unformat_addr(ipEncryptorType.mac_hclos, &src_mac);
 
-      uint8_t route = 1;
       if (route == 1) {
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos10, &dst_mac);
         src_ip = RTE_IPV4(10, 10, 10, 1);
@@ -1307,7 +1308,6 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     } else {
       rte_ether_unformat_addr(ipEncryptorType.mac_hclos, &dst_mac);
 
-      uint8_t route = 1;
       if (route == 1) {
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos10, &src_mac);
         src_ip = RTE_IPV4(10, 10, 10, 2);
