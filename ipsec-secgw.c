@@ -1845,11 +1845,6 @@ static int parse_schedule_type(struct eh_conf* conf, const char* optarg) {
 }
 
 int config_hclos_lclos() {
-  strcpy(ipEncryptorType.mac_hclos, "aa:bb:cc:dd:ee:ff");
-  strcpy(ipEncryptorType.mac_lclos10, "11:22:33:44:55:01");
-  strcpy(ipEncryptorType.mac_lclos20, "11:22:33:44:55:02");
-  strcpy(ipEncryptorType.mac_lclos30, "11:22:33:44:55:03");
-
   if (strcmp(optarg, "HCLOS") == 0) {
     ipEncryptorType.device = 0;
     return 0;
