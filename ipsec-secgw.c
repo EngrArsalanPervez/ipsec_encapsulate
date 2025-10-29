@@ -66,17 +66,20 @@ struct ipEncryptorTypeStruct {
 struct ipEncryptorTypeStruct ipEncryptorType = {0};
 
 // SiteA behind HCLOS
-const char* mac_hclos = "aa:bb:cc:dd:ee:ff";
+const char* fixed_mac_hclos = "aa:bb:cc:dd:ee:ff";  // also in IPE_HCLOS.cfg
+const char* user_ip_hclos = "192.168.99.20";
 
 // SiteB behind LCLOS10
-const char* mac_lclos10 = "11:22:33:44:55:01";
+const char* fixed_mac_lclos10 = "11:22:33:44:55:01";  // also in IPE_LCLOS10.cfg
+const char* user_ip_lclos10 = "192.168.99.30";
 
 // SiteC behind LCLOS20
-const char* mac_lclos20 = "11:22:33:44:55:02";
+const char* fixed_mac_lclos20 = "11:22:33:44:55:02";  // also in IPE_LCLOS20.cfg
+const char* user_ip_lclos20 = "192.168.99.40";
 
 // SiteD behind LCLOS30
-const char* mac_lclos30 = "11:22:33:44:55:03";
-
+const char* fixed_mac_lclos30 = "11:22:33:44:55:03";  // also in IPE_LCLOS30.cfg
+const char* user_ip_lclos30 = "192.168.99.50";
 /*****************************************************************************/
 
 volatile bool force_quit;
@@ -1369,34 +1372,34 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     uint32_t dst_ip;
 
     if (ipEncryptorType.device == 0) {
-      rte_ether_unformat_addr(mac_hclos, &src_mac);
+      rte_ether_unformat_addr(fixed_mac_hclos, &src_mac);
 
-      if (ip4Hdr->dst_addr == ip_to_uint32("192.168.99.30")) {
-        rte_ether_unformat_addr(mac_lclos10, &dst_mac);
+      if (ip4Hdr->dst_addr == ip_to_uint32(user_ip_lclos10)) {
+        rte_ether_unformat_addr(fixed_mac_lclos10, &dst_mac);
         src_ip = RTE_IPV4(10, 10, 10, 1);
         dst_ip = RTE_IPV4(10, 10, 10, 2);
-      } else if (ip4Hdr->dst_addr == ip_to_uint32("192.168.99.40")) {
-        rte_ether_unformat_addr(mac_lclos20, &dst_mac);
+      } else if (ip4Hdr->dst_addr == ip_to_uint32(user_ip_lclos20)) {
+        rte_ether_unformat_addr(fixed_mac_lclos20, &dst_mac);
         src_ip = RTE_IPV4(20, 20, 20, 1);
         dst_ip = RTE_IPV4(20, 20, 20, 2);
-      } else if (ip4Hdr->dst_addr == ip_to_uint32("192.168.99.50")) {
-        rte_ether_unformat_addr(mac_lclos30, &dst_mac);
+      } else if (ip4Hdr->dst_addr == ip_to_uint32(user_ip_lclos30)) {
+        rte_ether_unformat_addr(fixed_mac_lclos30, &dst_mac);
         src_ip = RTE_IPV4(30, 30, 30, 1);
         dst_ip = RTE_IPV4(30, 30, 30, 2);
       }
     } else {
-      rte_ether_unformat_addr(mac_hclos, &dst_mac);
+      rte_ether_unformat_addr(fixed_mac_hclos, &dst_mac);
 
-      if (ip4Hdr->src_addr == ip_to_uint32("192.168.99.30")) {
-        rte_ether_unformat_addr(mac_lclos10, &src_mac);
+      if (ip4Hdr->src_addr == ip_to_uint32(user_ip_lclos10)) {
+        rte_ether_unformat_addr(fixed_mac_lclos10, &src_mac);
         src_ip = RTE_IPV4(10, 10, 10, 2);
         dst_ip = RTE_IPV4(10, 10, 10, 1);
-      } else if (ip4Hdr->src_addr == ip_to_uint32("192.168.99.40")) {
-        rte_ether_unformat_addr(mac_lclos20, &src_mac);
+      } else if (ip4Hdr->src_addr == ip_to_uint32(user_ip_lclos20)) {
+        rte_ether_unformat_addr(fixed_mac_lclos20, &src_mac);
         src_ip = RTE_IPV4(20, 20, 20, 2);
         dst_ip = RTE_IPV4(20, 20, 20, 1);
-      } else if (ip4Hdr->src_addr == ip_to_uint32("192.168.99.50")) {
-        rte_ether_unformat_addr(mac_lclos30, &src_mac);
+      } else if (ip4Hdr->src_addr == ip_to_uint32(user_ip_lclos30)) {
+        rte_ether_unformat_addr(fixed_mac_lclos30, &src_mac);
         src_ip = RTE_IPV4(30, 30, 30, 2);
         dst_ip = RTE_IPV4(30, 30, 30, 1);
       }
