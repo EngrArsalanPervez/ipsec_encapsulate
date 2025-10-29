@@ -1359,6 +1359,19 @@ uint32_t ip_to_uint32(const char* ip_str) {
   return ip_addr.s_addr;  // already in network byte order
 }
 
+static inline struct rte_mbuf* clone_packet(struct rte_mbuf* pkt) {
+  if (pkt == NULL)
+    return NULL;
+
+  // rte_pktmbuf_clone creates a shallow copy of the mbuf (shares data buffer)
+  struct rte_mbuf* clone = rte_pktmbuf_clone(pkt, socket_ctx[0].mbuf_pool);
+
+  if (clone == NULL)
+    rte_pktmbuf_free(pkt);  // optional: free original if you don’t need it
+
+  return clone;
+}
+
 // Main encapsulation loop
 void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
   struct rte_ether_addr src_mac, dst_mac;
@@ -1376,6 +1389,11 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
 
     struct rte_ipv4_hdr* ip4Hdr;
     ip4Hdr = (struct rte_ipv4_hdr*)&pkt[14];
+
+    if (ip4Hdr->next_proto_id == 0x59) {
+      // OSPF
+      struct rte_mbuf* pkt1 = clone_packet(m);
+    }
 
     uint32_t src_ip;
     uint32_t dst_ip;
