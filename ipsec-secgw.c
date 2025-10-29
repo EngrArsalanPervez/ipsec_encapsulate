@@ -60,7 +60,7 @@
 
 /*****************************************************************************/
 // #define DUMP_PCAP
-uint8_t device_type = 0;
+uint8_t device_type = 0;  // HCLOS or LCLOS
 
 // SiteA behind HCLOS
 const char* fixed_mac_hclos = "aa:bb:cc:dd:ee:ff";  // also in IPE_HCLOS.cfg
