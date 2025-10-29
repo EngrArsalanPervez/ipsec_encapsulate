@@ -58,7 +58,11 @@
 #include "sad.h"
 
 struct ipEncryptorTypeStruct {
-  uint8_t direction;
+  char mac_hclos[32];
+  char mac_lclos10[32];
+  char mac_lclos20[32];
+  char mac_lclos30[32];
+  uint8_t device;
 };
 struct ipEncryptorTypeStruct ipEncryptorType = {0};
 
@@ -1283,16 +1287,40 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     uint32_t src_ip;
     uint32_t dst_ip;
 
-    if (ipEncryptorType.direction == 0) {
-      rte_ether_unformat_addr("11:22:33:44:55:66", &src_mac);
-      rte_ether_unformat_addr("aa:bb:cc:dd:ee:ff", &dst_mac);
-      src_ip = RTE_IPV4(10, 10, 10, 1);
-      dst_ip = RTE_IPV4(10, 10, 10, 2);
+    if (ipEncryptorType.device == 0) {
+      rte_ether_unformat_addr(ipEncryptorType.mac_hclos, &src_mac);
+
+      uint8_t route = 1;
+      if (route == 1) {
+        rte_ether_unformat_addr(ipEncryptorType.mac_lclos10, &dst_mac);
+        src_ip = RTE_IPV4(10, 10, 10, 1);
+        dst_ip = RTE_IPV4(10, 10, 10, 2);
+      } else if (route == 2) {
+        rte_ether_unformat_addr(ipEncryptorType.mac_lclos20, &dst_mac);
+        src_ip = RTE_IPV4(20, 20, 20, 1);
+        dst_ip = RTE_IPV4(20, 20, 20, 2);
+      } else if (route == 3) {
+        rte_ether_unformat_addr(ipEncryptorType.mac_lclos30, &dst_mac);
+        src_ip = RTE_IPV4(30, 30, 30, 1);
+        dst_ip = RTE_IPV4(30, 30, 30, 2);
+      }
     } else {
-      rte_ether_unformat_addr("aa:bb:cc:dd:ee:ff", &src_mac);
-      rte_ether_unformat_addr("11:22:33:44:55:66", &dst_mac);
-      src_ip = RTE_IPV4(10, 10, 10, 2);
-      dst_ip = RTE_IPV4(10, 10, 10, 1);
+      rte_ether_unformat_addr(ipEncryptorType.mac_hclos, &dst_mac);
+
+      uint8_t route = 1;
+      if (route == 1) {
+        rte_ether_unformat_addr(ipEncryptorType.mac_lclos10, &src_mac);
+        src_ip = RTE_IPV4(10, 10, 10, 2);
+        dst_ip = RTE_IPV4(10, 10, 10, 1);
+      } else if (route == 2) {
+        rte_ether_unformat_addr(ipEncryptorType.mac_lclos20, &src_mac);
+        src_ip = RTE_IPV4(20, 20, 20, 2);
+        dst_ip = RTE_IPV4(20, 20, 20, 1);
+      } else if (route == 3) {
+        rte_ether_unformat_addr(ipEncryptorType.mac_lclos30, &src_mac);
+        src_ip = RTE_IPV4(30, 30, 30, 2);
+        dst_ip = RTE_IPV4(30, 30, 30, 1);
+      }
     }
 
     struct rte_mbuf* new_m = prepend_eth_ip_manual(
@@ -1732,12 +1760,17 @@ static int parse_schedule_type(struct eh_conf* conf, const char* optarg) {
 }
 
 int config_hclos_lclos() {
+  strcpy(ipEncryptorType.mac_hclos, "aa:bb:cc:dd:ee:ff");
+  strcpy(ipEncryptorType.mac_lclos10, "11:22:33:44:55:01");
+  strcpy(ipEncryptorType.mac_lclos20, "11:22:33:44:55:02");
+  strcpy(ipEncryptorType.mac_lclos30, "11:22:33:44:55:03");
+
   if (strcmp(optarg, "HCLOS") == 0) {
     uint8_t mac[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
-    ipEncryptorType.direction = 0;
+    ipEncryptorType.device = 0;
     return 0;
   } else if (strcmp(optarg, "LCLOS") == 0) {
-    ipEncryptorType.direction = 1;
+    ipEncryptorType.device = 1;
     return 0;
   } else
     return -1;
