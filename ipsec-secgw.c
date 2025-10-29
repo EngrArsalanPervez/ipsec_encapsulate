@@ -60,10 +60,7 @@
 
 /*****************************************************************************/
 // #define DUMP_PCAP
-struct ipEncryptorTypeStruct {
-  uint8_t device;
-};
-struct ipEncryptorTypeStruct ipEncryptorType = {0};
+uint8_t device_type = 0;
 
 // SiteA behind HCLOS
 const char* fixed_mac_hclos = "aa:bb:cc:dd:ee:ff";  // also in IPE_HCLOS.cfg
@@ -1383,7 +1380,7 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     uint32_t src_ip;
     uint32_t dst_ip;
 
-    if (ipEncryptorType.device == 0) {
+    if (device_type == 0) {
       rte_ether_unformat_addr(fixed_mac_hclos, &src_mac);
 
       if (ip4Hdr->dst_addr == ip_to_uint32(user_ip_lclos10)) {
@@ -1861,10 +1858,10 @@ static int parse_schedule_type(struct eh_conf* conf, const char* optarg) {
 
 int config_hclos_lclos() {
   if (strcmp(optarg, "HCLOS") == 0) {
-    ipEncryptorType.device = 0;
+    device_type = 0;
     return 0;
   } else if (strcmp(optarg, "LCLOS") == 0) {
-    ipEncryptorType.device = 1;
+    device_type = 1;
     return 0;
   } else
     return -1;
