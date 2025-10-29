@@ -83,7 +83,7 @@ const char* user_ip_lclos20 = "192.168.99.40";
 uint32_t src_ip_lclos20 =
     RTE_IPV4(20, 20, 20, 1);  // also in IPE_LCLOS20.cfg and HCLOS.cfg
 uint32_t dst_ip_lclos20 =
-    RTE_IPV4(20, 20, 20, 1);  // also in IPE_LCLOS20.cfg and HCLOS.cfg
+    RTE_IPV4(20, 20, 20, 2);  // also in IPE_LCLOS20.cfg and HCLOS.cfg
 
 // SiteD behind LCLOS30
 const char* fixed_mac_lclos30 = "11:22:33:44:55:03";  // also in IPE_LCLOS30.cfg
@@ -91,7 +91,7 @@ const char* user_ip_lclos30 = "192.168.99.50";
 uint32_t src_ip_lclos30 =
     RTE_IPV4(30, 30, 30, 1);  // also in IPE_LCLOS20.cfg and HCLOS.cfg
 uint32_t dst_ip_lclos30 =
-    RTE_IPV4(30, 30, 30, 1);  // also in IPE_LCLOS20.cfg and HCLOS.cfg
+    RTE_IPV4(30, 30, 30, 2);  // also in IPE_LCLOS20.cfg and HCLOS.cfg
 /*****************************************************************************/
 
 volatile bool force_quit;
