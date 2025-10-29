@@ -1333,7 +1333,7 @@ uint32_t ip_to_uint32(const char* ip_str) {
     return 0;
   }
 
-  return ip_addr.s_addr;  // already in network byte order
+  return rte_be_to_cpu_32(ip_addr.s_addr);  // already in network byte order
 }
 
 // Main encapsulation loop
@@ -1360,15 +1360,15 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     if (ipEncryptorType.device == 0) {
       rte_ether_unformat_addr(ipEncryptorType.mac_hclos, &src_mac);
 
-      if (ip4Hdr->dst_addr == ip_to_uint32("192.168.90.30")) {
+      if (ip4Hdr->dst_addr == ip_to_uint32("192.168.99.30")) {
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos10, &dst_mac);
         src_ip = RTE_IPV4(10, 10, 10, 1);
         dst_ip = RTE_IPV4(10, 10, 10, 2);
-      } else if (ip4Hdr->dst_addr == ip_to_uint32("192.168.90.40")) {
+      } else if (ip4Hdr->dst_addr == ip_to_uint32("192.168.99.40")) {
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos20, &dst_mac);
         src_ip = RTE_IPV4(20, 20, 20, 1);
         dst_ip = RTE_IPV4(20, 20, 20, 2);
-      } else if (ip4Hdr->dst_addr == ip_to_uint32("192.168.90.50")) {
+      } else if (ip4Hdr->dst_addr == ip_to_uint32("192.168.99.50")) {
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos30, &dst_mac);
         src_ip = RTE_IPV4(30, 30, 30, 1);
         dst_ip = RTE_IPV4(30, 30, 30, 2);
@@ -1376,15 +1376,15 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     } else {
       rte_ether_unformat_addr(ipEncryptorType.mac_hclos, &dst_mac);
 
-      if (ip4Hdr->src_addr == ip_to_uint32("192.168.90.30")) {
+      if (ip4Hdr->src_addr == ip_to_uint32("192.168.99.30")) {
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos10, &src_mac);
         src_ip = RTE_IPV4(10, 10, 10, 2);
         dst_ip = RTE_IPV4(10, 10, 10, 1);
-      } else if (ip4Hdr->src_addr == ip_to_uint32("192.168.90.40")) {
+      } else if (ip4Hdr->src_addr == ip_to_uint32("192.168.99.40")) {
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos20, &src_mac);
         src_ip = RTE_IPV4(20, 20, 20, 2);
         dst_ip = RTE_IPV4(20, 20, 20, 1);
-      } else if (ip4Hdr->src_addr == ip_to_uint32("192.168.90.50")) {
+      } else if (ip4Hdr->src_addr == ip_to_uint32("192.168.99.50")) {
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos30, &src_mac);
         src_ip = RTE_IPV4(30, 30, 30, 2);
         dst_ip = RTE_IPV4(30, 30, 30, 1);
