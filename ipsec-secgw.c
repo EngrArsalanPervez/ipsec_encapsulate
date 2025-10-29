@@ -1329,10 +1329,6 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
     struct rte_mbuf* m = pkts[i];
     // print_mbuf_hex("original packet", m);
 
-#ifdef DUMP_PCAP
-    dump_packet(m);
-#endif
-
     uint32_t src_ip;
     uint32_t dst_ip;
 
@@ -1464,6 +1460,12 @@ void ipsec_poll_mode_worker(void) {
       portid = rxql[i].port_id;
       queueid = rxql[i].queue_id;
       nb_rx = rte_eth_rx_burst(portid, queueid, pkts, MAX_PKT_BURST);
+
+#ifdef DUMP_PCAP
+      for (uint8_t i = 0; i < nb_rx; i++) {
+        dump_packet(pkts[i]);
+      }
+#endif
 
       if (portid == 0) {
         encapsulate_pkt(pkts, nb_rx);
