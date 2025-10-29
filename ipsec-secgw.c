@@ -65,6 +65,7 @@ struct ipEncryptorTypeStruct {
   uint8_t device;
 };
 struct ipEncryptorTypeStruct ipEncryptorType = {0};
+#define DUMP_PCAP
 
 volatile bool force_quit;
 
@@ -270,6 +271,49 @@ static struct rte_eth_conf port_conf = {
 };
 
 struct socket_ctx socket_ctx[NB_SOCKETS];
+
+/************************DUMP_PCAP*********************************/
+
+#ifdef DUMP_PCAP
+static pcap_dumper_t* pcap_dumper;
+static pcap_t* pcap_handle;
+void open_pcap_file(const char* filename) {
+  char errbuf[PCAP_ERRBUF_SIZE];
+
+  // Open a pcap file for packet capture (not for dumping)
+  pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);  // Ethernet header
+  if (!pcap_handle) {
+    fprintf(stderr, "Failed to open pcap file for capture\n");
+    exit(1);
+  }
+
+  // Open the pcap dump file (use pcap_dump_open for dumping packets)
+  pcap_dumper = pcap_dump_open(pcap_handle, filename);
+  if (pcap_dumper == NULL) {
+    fprintf(stderr, "Failed to open pcap dump file: %s\n", filename);
+    exit(1);
+  }
+}
+/* Function to process and dump packets to pcap */
+void dump_packet(struct rte_mbuf* pkt) {
+  struct pcap_pkthdr header;
+  uint8_t* packet_data;
+
+  // Get packet data (you can extract headers here if needed)
+  packet_data = rte_pktmbuf_mtod(pkt, uint8_t*);
+
+  // Create the pcap header
+  header.ts.tv_sec = time(NULL);  // Timestamp
+  header.ts.tv_usec = 0;
+  header.caplen = pkt->pkt_len;
+  header.len = pkt->pkt_len;
+
+  // Dump the packet to pcap
+  pcap_dump((u_char*)pcap_dumper, &header, packet_data);
+}
+#endif
+
+/************************DUMP_PCAP*********************************/
 
 /*
  * Determine is multi-segment support required:
@@ -1415,6 +1459,10 @@ void ipsec_poll_mode_worker(void) {
       portid = rxql[i].port_id;
       queueid = rxql[i].queue_id;
       nb_rx = rte_eth_rx_burst(portid, queueid, pkts, MAX_PKT_BURST);
+
+#ifdef DUMP_PCAP
+      dump_packet(buf);
+#endif
 
       if (portid == 0) {
         encapsulate_pkt(pkts, nb_rx);
@@ -3473,6 +3521,10 @@ int32_t main(int32_t argc, char** argv) {
   flow_init();
 
   check_all_ports_link_status(enabled_port_mask);
+
+#ifdef DUMP_PCAP
+  open_pcap_file("dump.pcap");
+#endif
 
   if (stats_interval > 0)
     rte_eal_alarm_set(stats_interval * US_PER_S, print_stats_cb, NULL);
