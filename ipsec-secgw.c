@@ -1333,7 +1333,7 @@ uint32_t ip_to_uint32(const char* ip_str) {
     return 0;
   }
 
-  return rte_be_to_cpu_32(ip_addr.s_addr);  // already in network byte order
+  return ip_addr.s_addr;  // already in network byte order
 }
 
 // Main encapsulation loop
@@ -1372,6 +1372,8 @@ void encapsulate_pkt(struct rte_mbuf** pkts, uint8_t nb_pkts) {
         rte_ether_unformat_addr(ipEncryptorType.mac_lclos30, &dst_mac);
         src_ip = RTE_IPV4(30, 30, 30, 1);
         dst_ip = RTE_IPV4(30, 30, 30, 2);
+      } else {
+        printf("%u:%u\n", ip4Hdr->dst_addr, ip_to_uint32("192.168.99.30"));
       }
     } else {
       rte_ether_unformat_addr(ipEncryptorType.mac_hclos, &dst_mac);
